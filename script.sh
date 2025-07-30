@@ -1,10 +1,15 @@
 #!/bin/bash
 
-YOUR_NS1="ns1.superdominiosparking.org"
-YOUR_NS2="ns2.superdominiosparking.org"
+YOUR_NS1="ns1.centos-webpanel.com"
+YOUR_NS2="ns2.centos-webpanel.com"
 
 NAMED_ZONES_DIR="/var/named"
-OUTPUT_FILE="invalidzones.txt"
+OUTPUT_FILE="dominios_dns_incorreto.txt"
+
+echo "Iniciando a verificação de DNS para domínios com zona DNS em $NAMED_ZONES_DIR..."
+echo "Servidores DNS esperados: $YOUR_NS1 e $YOUR_NS2"
+echo "Resultados incorretos serão salvos em: $OUTPUT_FILE"
+echo "---"
 
 > "$OUTPUT_FILE"
 
@@ -17,8 +22,9 @@ DOMAINS=$(find "$NAMED_ZONES_DIR" -maxdepth 1 -type f -name "*.db" \
 
 TOTAL_DOMAINS=$(echo "$DOMAINS" | wc -l)
 PROCESSED_COUNT=0
+CORRECT_DNS_COUNT=0
 
-echo "Total de domínios encontrados: $TOTAL_DOMAINS"
+echo "Total de domínios encontrados para verificação: $TOTAL_DOMAINS"
 echo "---"
 
 for DOMAIN in $DOMAINS; do
@@ -30,28 +36,24 @@ for DOMAIN in $DOMAINS; do
     fi
 
     echo "  - ($PROCESSED_COUNT/$TOTAL_DOMAINS) Checando domínio: $DOMAIN"
-
-    CURRENT_NSS=$(dig +time=5 +tries=1 +short NS "$DOMAIN" | sort)
+    CURRENT_NSS=$(dig +time=5 +tries=3 +short NS "$DOMAIN" | sed 's/\.$//' | sort)
 
     if ! echo "$CURRENT_NSS" | grep -q "^$YOUR_NS1$" || ! echo "$CURRENT_NSS" | grep -q "^$YOUR_NS2$"; then
-        echo "    ❌ $DOMAIN NÃO aponta para o superdominiosparking"
+        echo "    ❌ ALERTA: $DOMAIN NÃO aponta para seus servidores DNS"
         echo "$DOMAIN" >> "$OUTPUT_FILE"
         echo "      Servidores DNS atuais para $DOMAIN:"
-        if [ -z "$CURRENT_NSS" ]; then
-            echo "        Nenhum servidor DNS encontrado."
-        else
-            echo "$CURRENT_NSS" | sed 's/^/        - /'
-        fi
+        echo "$CURRENT_NSS" | sed 's/^/        - /'
         echo "      Servidores DNS esperados: $YOUR_NS1, $YOUR_NS2"
     else
         if [ $(echo "$CURRENT_NSS" | wc -l) -ne 2 ]; then
-            echo "    ⚠️ $DOMAIN aponta para seus servidores DNS, mas **outros NS também foram encontrados**."
+            echo "    ⚠️ ALERTA: $DOMAIN aponta para seus servidores DNS, mas **outros NS também foram encontrados**."
             echo "$DOMAIN" >> "$OUTPUT_FILE"
             echo "      Servidores DNS atuais para $DOMAIN:"
             echo "$CURRENT_NSS" | sed 's/^/        - /'
             echo "      Servidores DNS esperados: $YOUR_NS1, $YOUR_NS2"
         else
-            echo "    ✅ $DOMAIN aponta **exclusivamente** para seus servidores DNS."
+            CORRECT_DNS_COUNT=$((CORRECT_DNS_COUNT + 1))
+            echo "    ✅ OK: $DOMAIN aponta **exclusivamente** para seus servidores DNS. (Total OKs: $CORRECT_DNS_COUNT)"
         fi
     fi
 done
@@ -59,3 +61,4 @@ done
 echo "---"
 echo "Verificação concluída. $PROCESSED_COUNT domínios processados."
 echo "Os domínios com apontamento DNS incorreto foram salvos em: $(pwd)/$OUTPUT_FILE"
+echo "Total de domínios com DNS correto: $CORRECT_DNS_COUNT"
