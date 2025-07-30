@@ -4,7 +4,7 @@ YOUR_NS1="ns1.superdominiosparking.org"
 YOUR_NS2="ns2.superdominiosparking.org"
 
 NAMED_ZONES_DIR="/var/named"
-OUTPUT_FILE="dns_invalidos.txt"
+OUTPUT_FILE="invalidzones.txt"
 
 > "$OUTPUT_FILE"
 
